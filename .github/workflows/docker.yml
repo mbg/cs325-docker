@@ -1,0 +1,37 @@
+name: Docker
+
+on:
+  push:
+    branches: [ master ]
+    tags:
+        - 'v*'
+  pull_request:
+
+env:
+  IMAGE_NAME: cs325
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Build the Docker image
+      id: build
+      run: |
+        VERSION=${GITHUB_REF/refs\/tags\//}
+        echo ::set-output name=version::$VERSION
+        docker build . --file Dockerfile --tag $IMAGE_NAME:$VERSION
+
+    - name: Publish Docker image
+      if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') }}
+      run: |
+        echo "${{ secrets.GITHUB_TOKEN }}" | docker login docker.pkg.github.com -u ${{ github.actor }} --password-stdin
+        IMAGE_ID=docker.pkg.github.com/${{ github.repository }}/$IMAGE_NAME
+        docker tag $IMAGE_NAME:$VERSION $IMAGE_ID:$VERSION
+        docker tag $IMAGE_NAME:$VERSION $IMAGE_ID:latest
+        docker push $IMAGE_ID:$VERSION
+        docker push $IMAGE_ID:latest
+      env:
+        VERSION: ${{ steps.build.outputs.version }}
